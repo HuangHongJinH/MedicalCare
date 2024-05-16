@@ -1,0 +1,118 @@
+package com.example.medicalcare2;
+import android.content.DialogInterface;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.EditText;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import fi.iki.elonen.NanoHTTPD;
+
+
+public class ma extends AppCompatActivity {
+    private Map<String, Object> response;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.mylayout);
+        //启动NanoHTTPD
+        AppServer server = new AppServer();
+        try {
+            server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 这是一个辅助方法，用于保护隐私
+    public String protectPrivacy(String data) {
+        if (data == null || data.length() < 4) {
+            return data; // 如果数据太短，则直接返回
+        }
+        // 只显示前两位和后两位，中间用星号表示
+        String start = data.substring(0, 2);
+        String end = data.substring(data.length() - 2);
+        return start + "****" + end;
+    }
+    // 这是一个辅助方法，用于显示对话框
+    public void showAuthDialog() {
+        Map<String, Object> response = new HashMap<>();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("授权");
+        // 设置自定义布局
+        final View customLayout = getLayoutInflater().inflate(R.layout.activity_my, null);
+        builder.setView(customLayout);
+        builder.setPositiveButton("确认", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                response.put("status", "success");
+                response.put("message", "授权成功");
+            }
+        });
+        builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                response.put("status", "cancel");
+                response.put("message", "授权取消");
+            }
+        });
+        // 显示对话框
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+    public class AppServer extends NanoHTTPD {
+        public AppServer() {
+            super(8080); // 设置服务器监听的端口号
+        }
+
+        @Override
+        @PostMapping("/auth")
+        public Response serve(IHTTPSession session) {
+            Method method = session.getMethod();
+            String uri = session.getUri();
+            if (Method.POST.equals(method) && "/auth".equals(uri)) {
+                Map<String, String> files = new HashMap<>();
+                try {
+                    session.parseBody(files);
+                    // 处理授权逻辑，例如验证用户名和密码
+                    String username = (String)files.get("username");
+                    String password = (String)files.get("password");
+                    // 为了隐私保护，只显示用户名和密码的部分字符
+                    EditText usernameEditText = findViewById(R.id.username);
+                    EditText passwordEditText = findViewById(R.id.password);
+                    usernameEditText.setText(protectPrivacy(username));
+                    passwordEditText.setText(protectPrivacy(password));
+                    //显示对话框
+                    response=new HashMap<>();
+                    showAuthDialog();
+                    if(response.get("status").equals("success"))
+                        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"success\",\"message\":\"授权成功\"}");
+                    else
+                        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"cancel\",\"message\":\"授权取消\"}");
+                } catch (IOException | ResponseException e) {
+                    e.printStackTrace();
+                    return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"status\":\"error\",\"message\":\"内部错误\"}");
+                }
+            }
+
+            // 对于其他请求，返回404
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", "{\"status\":\"error\",\"message\":\"未找到资源\"}");
+        }
+    }
+}
+
+
+
+
+
+
+
