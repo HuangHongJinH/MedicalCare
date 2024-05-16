@@ -33,6 +33,21 @@ public class ma extends AppCompatActivity {
         }
     }
 
+    @PostMapping("/auth")
+    public ResponseEntity<?> auth(@RequestBody Map<String, Object> authData) {
+        // 处理授权逻辑，例如验证用户名和密码
+        String username = (String) authData.get("username");
+        String password = (String) authData.get("password");
+        // 为了隐私保护，只显示用户名和密码的部分字符
+        EditText usernameEditText = findViewById(R.id.username);
+        EditText passwordEditText = findViewById(R.id.password);
+        usernameEditText.setText(protectPrivacy(username));
+        passwordEditText.setText(protectPrivacy(password));
+        //显示对话框
+        response=new HashMap<>();
+        showAuthDialog();
+        return ResponseEntity.ok(response);
+    }
     // 这是一个辅助方法，用于保护隐私
     public String protectPrivacy(String data) {
         if (data == null || data.length() < 4) {
