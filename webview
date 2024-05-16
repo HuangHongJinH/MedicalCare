@@ -1,0 +1,109 @@
+package com.example.medicalcare2;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.os.Bundle;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+
+public class ma extends AppCompatActivity{
+
+    // 定义与Web端通信的接口
+    private WebView webView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.mylayout);
+
+        webView = findViewById(R.id.mywebview);
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.setWebViewClient(new MyWebViewClient());
+        webView.addJavascriptInterface(new WebAppInterface(this), "Android");
+        webView.loadUrl("file:///android_asset/your_web_page.html");
+    }
+
+    public class WebAppInterface {
+        Context mContext;
+
+        // Instantiate the interface and set the context
+        WebAppInterface(Context c) {
+            mContext = c;
+        }
+
+        // Show a toast from the web page
+        @JavascriptInterface
+        public void showToast(String toast) {
+            Toast.makeText(mContext, toast, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private class MyWebViewClient extends WebViewClient {
+        // 在这里处理来自Web端的调用
+        @JavascriptInterface
+        public void requestAuthorization(String message) {
+            // 解析从Web端收到的消息
+            JSONObject jsonMessage;
+            try {
+                jsonMessage = new JSONObject(message);
+                if (jsonMessage.getString("type").equals("AUTH_REQUEST")) {
+                    // 在UI线程中运行
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            // 创建一个弹窗询问用户是否授权
+                            AlertDialog.Builder builder = new AlertDialog.Builder(ma.this);
+                            builder.setMessage("是否授权个人信息？")
+                                    .setPositiveButton("确认", new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog, int id) {
+                                            // 用户确认授权
+                                            sendAuthorizationResult(true);
+                                            Toast.makeText(ma.this, "授权完成", Toast.LENGTH_SHORT).show();
+                                        }
+                                    })
+                                    .setNegativeButton("拒绝", new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog, int id) {
+                                            sendAuthorizationResult(false);
+                                            // 不弹出Toast
+                                        }
+                                    });
+                            // 显示弹窗
+                            AlertDialog dialog = builder.create();
+                            dialog.show();
+                        }
+                    });
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+        // 发送授权结果到Web端的函数
+        public void sendAuthorizationResult(boolean isAuthorized) {
+            // 构造授权结果的JSON对象
+            JSONObject jsonResult = new JSONObject();
+            try {
+                jsonResult.put("type", "AUTH_RESPONSE");
+                jsonResult.put("authorized", isAuthorized);
+
+                // 调用Web端的JavaScript函数
+                final String jsCode = "javascript:handleAuthorizationResponse(" + jsonResult.toString() + ")";
+                webView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        webView.evaluateJavascript(jsCode, null);
+                    }
+                });
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
